@@ -2,37 +2,34 @@ library(tidyverse)
 library(tidymodels)
 library(vroom)
 
-train <- vroom("train.csv") %>% 
-  mutate(Store = factor(Store), 
-         Dept = factor(Dept), 
-         IsHoliday = factor(IsHoliday))
+train <- vroom("train.csv") 
 
-test <- vroom("test.csv")%>% 
-  mutate(Store = factor(Store), 
-         Dept = factor(Dept), 
-         StoreDept = paste(Store,Dept,sep="_"))
+test <- vroom("test.csv")
 
 features <- vroom("features.csv") %>% 
-  mutate(Store = factor(Store), 
-         IsHoliday = factor(IsHoliday))
+  mutate(across(c(MarkDown1:MarkDown5), ~replace(., is.na(.), 0))) %>%
+  mutate(across(c(MarkDown1:MarkDown5), ~replace(., . < 0, 0))) %>% 
+  mutate(TotalMarkdown = MarkDown1 + MarkDown2 + MarkDown3 + MarkDown4 + MarkDown5, 
+         MarkdownFlag = ifelse(TotalMarkdown != 0, 1, 0)) %>% 
+  select(-MarkDown1, -MarkDown2, -MarkDown3, -MarkDown4, -MarkDown5)
 
 ## Join data
-joined_features <- train %>% 
-  left_join(features, by = c("Store", "Date", "IsHoliday")) %>%
-  mutate(StoreDept=paste(Store,Dept,sep="_"))
+joined_train <- train %>% 
+  left_join(features, by = c("Store", "Date")) 
 
-joined_features %>% pull(StoreDept) %>%
-  unique()
+joined_test <- test %>% 
+  left_join(features, by = c("Store", "Date"))
 
-setdiff(joined_features$StoreDept, test$StoreDept)
+#####
+## Create the recipe
+#####
 
-## Check missing data
-joined_features %>% 
-  na.omit() %>% 
-  nrow()
-
-nrow(joined_features)
-
-## graphics
-ggplot(train, aes(x = IsHoliday, y = Weekly_Sales)) +
-  geom_boxplot()
+# walmart_recipe <- recipe(Weekly_Sales ~ ., data = train) %>% 
+#   step_mutate(Store = factor(Store), 
+#               Dept = factor(Dept), 
+#               IsHoliday = factor(IsHoliday)) %>% 
+#   step_impute() %>% 
+#   step_date(Date, features = c("month", "dow", "mday", "doy", "week", 
+#                                "decimal", "quarter", "semester", "year")) %>% 
+#   full_join(features) %>% 
+#   step_mutate(StoreDept = paste(Store, Dept, sep="_"))
